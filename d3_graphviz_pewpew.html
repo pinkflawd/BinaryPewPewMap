@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binary Call Graph Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #0f0f23;
+            color: #cccccc;
+            overflow: hidden;
+        }
+
+        #container {
+            display: flex;
+            height: 100vh;
+        }
+
+        #sidebar {
+            width: 300px;
+            background: #1a1a2e;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        #visualization {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #16213e 0%, #0f0f23 100%);
+        }
+
+        .control-panel {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #333366;
+        }
+
+        .control-panel h3 {
+            margin: 0 0 10px 0;
+            color: #64ffda;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .file-input {
+            width: 100%;
+            padding: 8px;
+            background: #0f0f23;
+            border: 1px solid #333366;
+            border-radius: 4px;
+            color: #cccccc;
+            margin-bottom: 10px;
+        }
+
+        .slider-container {
+            margin: 10px 0;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .slider {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: #333366;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #64ffda;
+            cursor: pointer;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            font-size: 12px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 8px;
+            background: #0f0f23;
+            border-radius: 4px;
+            border: 1px solid #333366;
+        }
+
+        .stat-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #64ffda;
+        }
+
+        .legend {
+            margin-top: 15px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .node-info {
+            position: fixed;
+            top: 20px;
+            left: 320px;
+            background: rgba(26, 26, 46, 0.95);
+            border: 1px solid #64ffda;
+            border-radius: 8px;
+            padding: 15px;
+            z-index: 20;
+            width: 350px;
+            max-height: calc(100vh - 40px);
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+            display: none;
+        }
+
+        .node-info h4 {
+            margin: 0 0 10px 0;
+            color: #64ffda;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .node-info-item {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+
+        .node-info-label {
+            color: #888;
+            margin-right: 8px;
+        }
+
+        .string-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            background: rgba(15, 15, 35, 0.8);
+            padding: 8px;
+            border-radius: 4px;
+            margin: 8px 0;
+            border: 1px solid #333366;
+        }
+
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #64ffda;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 8px;
+            background: #0f0f23;
+            border: 1px solid #333366;
+            border-radius: 4px;
+            color: #cccccc;
+            margin-bottom: 10px;
+        }
+
+        .search-results {
+            max-height: 150px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+
+        .search-result-item {
+            padding: 5px;
+            cursor: pointer;
+            border-radius: 3px;
+            margin: 2px 0;
+            background: rgba(15, 15, 35, 0.5);
+        }
+
+        .node-info .close-btn {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #64ffda;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .node-info .close-btn:hover {
+            color: #ffffff;
+        }
+
+        .highlighted {
+            stroke: #ffff00 !important;
+            stroke-width: 3px !important;
+        }
+
+        .highlighted-edge {
+            stroke: #fff000 !important;
+            stroke-width: 4px !important;
+            stroke-opacity: 1 !important;
+        }
+
+        .dimmed {
+            opacity: 0.3;
+        }
+
+        .button {
+            background: #64ffda;
+            color: #0f0f23;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 5px 5px 5px 0;
+        }
+
+        .button:hover {
+            background: #4fd3b8;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="sidebar">
+            <div class="control-panel">
+                <h3>Load Call Graph</h3>
+                <input type="file" id="fileInput" class="file-input" accept=".json">
+                <div class="stats-grid" id="stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="nodeCount">0</div>
+                        <div>Functions</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="edgeCount">0</div>
+                        <div>Calls</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>Search Functions</h3>
+                <input type="text" id="searchBox" class="search-box" placeholder="Search function names...">
+                <div id="searchResults" class="search-results"></div>
+            </div>
+
+            <div class="control-panel">
+                <h3>Visual Controls</h3>
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Node Size Scale</span>
+                        <span id="nodeSizeValue">1.0</span>
+                    </div>
+                    <input type="range" id="nodeSizeSlider" class="slider" min="0.1" max="5.0" step="0.1" value="1.0">
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Link Distance</span>
+                        <span id="linkDistanceValue">100</span>
+                    </div>
+                    <input type="range" id="linkDistanceSlider" class="slider" min="20" max="500" step="10" value="100">
+                </div>
+
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>Charge Strength</span>
+                        <span id="chargeStrengthValue">-100</span>
+                    </div>
+                    <input type="range" id="chargeStrengthSlider" class="slider" min="-1000" max="-10" step="10" value="-100">
+                </div>
+
+                <button class="button" onclick="centerGraph()">Center Graph</button>
+                <button class="button" onclick="resetZoom()">Reset Zoom</button>
+            </div>
+
+            <div class="control-panel">
+                <h3>Color Legend</h3>
+                <div class="legend" id="colorLegend">
+                    <!-- Color legend will be populated dynamically -->
+                </div>
+            </div>
+
+            <div class="control-panel">
+                <h3>Size Legend</h3>
+                <div class="legend-item">
+                    <div class="legend-color" style="width: 6px; height: 6px; background: #666;"></div>
+                    <span>Small functions (0-50 bytes)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="width: 10px; height: 10px; background: #666;"></div>
+                    <span>Medium functions (51-200 bytes)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="width: 16px; height: 16px; background: #666;"></div>
+                    <span>Large functions (200+ bytes)</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="visualization">
+            <div class="loading" id="loading" style="display: none;">Loading call graph...</div>
+        </div>
+    </div>
+
+    <div id="tooltip" class="node-info">
+        <!-- Node information will be displayed here -->
+    </div>
+
+    <script>
+        class CallGraphVisualizer {
+            constructor() {
+                this.svg = null;
+                this.simulation = null;
+                this.nodes = [];
+                this.links = [];
+                this.colorScale = null;
+                this.sizeScale = null;
+                this.zoom = null;
+                
+                // Configuration
+                this.config = {
+                    nodeSize: 1.0,
+                    linkDistance: 100,
+                    chargeStrength: -100,
+                    minNodeSize: 4,
+                    maxNodeSize: 20
+                };
+
+                // Create pewpew sound
+                this.createPewPewSound();
+
+                this.initVisualization();
+                this.setupEventListeners();
+            }
+
+            createPewPewSound() {
+                // Create AudioContext for web audio synthesis
+                this.audioContext = null;
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('Web Audio API not supported');
+                }
+            }
+
+            playPewPewSound() {
+                if (!this.audioContext) return;
+                
+                // Resume audio context if needed (browser autoplay policies)
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                const now = this.audioContext.currentTime;
+                
+                // Create oscillator for the pewpew sound
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                // Connect nodes
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                // Configure the pewpew sound
+                oscillator.type = 'square';
+                
+                // Frequency sweep from high to low (classic pewpew)
+                oscillator.frequency.setValueAtTime(800, now);
+                oscillator.frequency.exponentialRampToValueAtTime(200, now + 0.1);
+                
+                // Volume envelope for sharp attack and quick decay
+                gainNode.gain.setValueAtTime(0, now);
+                gainNode.gain.linearRampToValueAtTime(0.3, now + 0.01);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+                
+                // Play the sound
+                oscillator.start(now);
+                oscillator.stop(now + 0.15);
+            }
+
+            initVisualization() {
+                const container = d3.select("#visualization");
+                const width = container.node().clientWidth;
+                const height = container.node().clientHeight;
+
+                this.svg = container.append("svg")
+                    .attr("width", width)
+                    .attr("height", height)
+                    .style("cursor", "grab");
+
+                // Create zoom behavior
+                this.zoom = d3.zoom()
+                    .scaleExtent([0.1, 10])
+                    .on("zoom", (event) => {
+                        this.svg.select("g").attr("transform", event.transform);
+                    });
+
+                this.svg.call(this.zoom);
+
+                // Create main group for all graph elements
+                this.mainGroup = this.svg.append("g");
+
+                // Create groups for different elements (order matters for layering)
+                this.linksGroup = this.mainGroup.append("g").attr("class", "links");
+                this.nodesGroup = this.mainGroup.append("g").attr("class", "nodes");
+            }
+
+            setupEventListeners() {
+                // File input
+                d3.select("#fileInput").on("change", (event) => {
+                    const file = event.target.files[0];
+                    if (file) this.loadFile(file);
+                });
+
+                // Control sliders
+                d3.select("#nodeSizeSlider").on("input", (event) => {
+                    this.config.nodeSize = +event.target.value;
+                    d3.select("#nodeSizeValue").text(this.config.nodeSize);
+                    this.updateNodeSizes();
+                });
+
+                d3.select("#linkDistanceSlider").on("input", (event) => {
+                    this.config.linkDistance = +event.target.value;
+                    d3.select("#linkDistanceValue").text(this.config.linkDistance);
+                    if (this.simulation) {
+                        this.simulation.force("link").distance(this.config.linkDistance);
+                        this.simulation.alpha(0.3).restart();
+                    }
+                });
+
+                d3.select("#chargeStrengthSlider").on("input", (event) => {
+                    this.config.chargeStrength = +event.target.value;
+                    d3.select("#chargeStrengthValue").text(this.config.chargeStrength);
+                    if (this.simulation) {
+                        this.simulation.force("charge").strength(this.config.chargeStrength);
+                        this.simulation.alpha(0.3).restart();
+                    }
+                });
+
+                // Search functionality
+                d3.select("#searchBox").on("input", (event) => {
+                    this.searchFunctions(event.target.value);
+                });
+
+                // Window resize
+                window.addEventListener("resize", () => {
+                    this.resizeVisualization();
+                });
+            }
+
+            loadFile(file) {
+                d3.select("#loading").style("display", "block");
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        this.loadData(data);
+                    } catch (error) {
+                        console.error("Error parsing JSON:", error);
+                        alert("Error loading file. Please check the JSON format.");
+                    }
+                    d3.select("#loading").style("display", "none");
+                };
+                reader.readAsText(file);
+            }
+
+            loadData(data) {
+                this.nodes = [...data.nodes];
+                this.links = [...data.links];
+
+                // Calculate function sizes (estimate from address ranges or use fixed values)
+                this.nodes.forEach(node => {
+                    // Estimate function size based on call count and string count as proxy
+                    node.functionSize = Math.max(20, (node.call_count * 10) + (node.string_count * 5) + 30);
+                });
+
+                // Create color scale based on outgoing calls
+                const maxCalls = d3.max(this.nodes, d => d.call_count) || 1;
+				//const metric = d3.max(this.nodes, d => d.spaghetti) || 1;
+                this.colorScale = d3.scaleSequential(d3.interpolateViridis)
+                    .domain([0, 100])
+					.clamp(true);
+
+                // Create size scale based on function size
+                const sizeExtent = d3.extent(this.nodes, d => d.functionSize);
+                this.sizeScale = d3.scaleLinear()
+                    .domain(sizeExtent)
+                    .range([this.config.minNodeSize, this.config.maxNodeSize]);
+
+                this.updateStats();
+                this.createColorLegend();
+                this.createVisualization();
+            }
+
+            createVisualization() {
+                // Clear existing elements
+                this.linksGroup.selectAll("*").remove();
+                this.nodesGroup.selectAll("*").remove();
+
+                // Create links
+                const link = this.linksGroup.selectAll("line")
+                    .data(this.links)
+                    .enter().append("line")
+                    .attr("stroke", d => d.edge_type === "call" ? "#64ffda" : "#ff6b6b")
+                    .attr("stroke-opacity", d => d.edge_type === "call" ? 0.8 : 0.4)
+                    .attr("stroke-width", d => d.edge_type === "call" ? 2 : 1);
+
+                // Create nodes
+                const node = this.nodesGroup.selectAll("circle")
+                    .data(this.nodes)
+                    .enter().append("circle")
+                    .attr("r", d => this.sizeScale(d.functionSize) * this.config.nodeSize)
+                    .attr("fill", d => this.colorScale(d.call_count))
+                    .attr("stroke", "#ffffff")
+                    .attr("stroke-width", 1)
+                    .style("cursor", "pointer")
+                    .call(this.createDragBehavior());
+
+                // Add node event handlers
+                node.on("mouseover", (event, d) => this.highlightConnections(d))
+                    .on("mouseout", (event, d) => this.clearHighlight())
+                    .on("click", (event, d) => this.showNodeInfo(d))
+                    .on("dblclick", (event, d) => this.focusOnNode(d));
+
+                // Create simulation
+                this.simulation = d3.forceSimulation(this.nodes)
+                    .force("link", d3.forceLink(this.links).id(d => d.index).distance(this.config.linkDistance))
+                    .force("charge", d3.forceManyBody().strength(this.config.chargeStrength))
+                    .force("center", d3.forceCenter(this.svg.attr("width") / 2, this.svg.attr("height") / 2))
+                    .force("collision", d3.forceCollide().radius(d => this.sizeScale(d.functionSize) * this.config.nodeSize + 2));
+
+                // Update positions on each tick
+                this.simulation.on("tick", () => {
+                    link.attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+
+                    node.attr("cx", d => d.x)
+                        .attr("cy", d => d.y);
+                });
+            }
+
+            createDragBehavior() {
+                return d3.drag()
+                    .on("start", (event, d) => {
+                        if (!event.active) this.simulation.alphaTarget(0.3).restart();
+                        d.fx = d.x;
+                        d.fy = d.y;
+                    })
+                    .on("drag", (event, d) => {
+                        d.fx = event.x;
+                        d.fy = event.y;
+                    })
+                    .on("end", (event, d) => {
+                        if (!event.active) this.simulation.alphaTarget(0);
+                        d.fx = null;
+                        d.fy = null;
+                    });
+            }
+
+            highlightConnections(node) {
+                // Clear previous highlights
+                this.clearHighlight();
+                
+                // Highlight the selected node
+                this.nodesGroup.selectAll("circle")
+                    .classed("highlighted", d => d === node)
+                    .classed("dimmed", d => d !== node);
+                
+                // Get connected node IDs
+                const connectedNodes = new Set();
+                connectedNodes.add(node.index);
+                
+                // Find outgoing connections and highlight edges
+                this.linksGroup.selectAll("line")
+                    .classed("highlighted-edge", d => {
+                        if (d.source === node) {
+                            connectedNodes.add(d.target.index);
+                            return true;
+                        }
+                        return false;
+                    })
+                    .classed("dimmed", d => d.source !== node);
+				
+				this.linksGroup.selectAll("line")
+                    .classed("highlighted-edge", d => {
+                        if (d.target === node) {
+                            connectedNodes.add(d.source.index);
+                            return true;
+                        }
+                        return false;
+                    })
+                
+                // Highlight connected nodes
+                this.nodesGroup.selectAll("circle")
+                    .classed("highlighted", d => connectedNodes.has(d.index))
+                    .classed("dimmed", d => !connectedNodes.has(d.index));
+            }
+
+            clearHighlight() {
+                this.nodesGroup.selectAll("circle")
+                    .classed("highlighted", false)
+                    .classed("dimmed", false);
+                    
+                this.linksGroup.selectAll("line")
+                    .classed("highlighted-edge", false)
+                    .classed("dimmed", false);
+            }
+
+            showNodeInfo(d) {
+                // Play pewpew sound!
+                this.playPewPewSound();
+                
+                const infoBox = d3.select("#tooltip");
+                
+                let content = `<button class="close-btn" onclick="window.visualizer.hideNodeInfo()">×</button>`;
+                content += `<h4>${d.name}</h4>`;
+                content += `<div class="node-info-item"><span class="node-info-label">Address:</span>${d.address}</div>`;
+                content += `<div class="node-info-item"><span class="node-info-label">Outgoing Calls:</span>${d.call_count}</div>`;
+                content += `<div class="node-info-item"><span class="node-info-label">References:</span>${d.reference_count}</div>`;
+                content += `<div class="node-info-item"><span class="node-info-label">Strings:</span>${d.string_count}</div>`;
+				content += `<div class="node-info-item"><span class="node-info-label">Spaghetti:</span>${d.spaghetti}</div>`;
+                
+                // Called Functions List
+                if (d.called_functions && d.called_functions.length > 0) {
+                    content += '<div class="string-list"><strong>Called Functions:</strong><br>';
+                    d.called_functions.forEach(func => {
+                        content += `• <span style="cursor: pointer; color: #64ffda;" onclick="window.visualizer.searchAndFocus('${func}')">${func}</span><br>`;
+                    });
+                    content += '</div>';
+                }
+                
+                // Referenced Functions List
+                if (d.referenced_functions && d.referenced_functions.length > 0) {
+                    content += '<div class="string-list"><strong>Referenced Functions:</strong><br>';
+                    d.referenced_functions.forEach(func => {
+                        content += `• <span style="cursor: pointer; color: #64ffda;" onclick="window.visualizer.searchAndFocus('${func}')">${func}</span><br>`;
+                    });
+                    content += '</div>';
+                }
+                
+                // Referenced Strings List
+                if (d.referenced_strings && d.referenced_strings.length > 0) {
+                    content += '<div class="string-list"><strong>Referenced Strings:</strong><br>';
+                    d.referenced_strings.forEach(str => {
+                        const displayStr = str.length > 80 ? str.substring(0, 80) + '...' : str;
+                        content += `• ${displayStr}<br>`;
+                    });
+                    content += '</div>';
+                }
+
+                infoBox.html(content)
+                    .style("display", "block");
+            }
+
+            hideNodeInfo() {
+                d3.select("#tooltip").style("display", "none");
+                this.clearHighlight();
+            }
+
+            searchAndFocus(functionName) {
+                const node = this.nodes.find(n => n.name === functionName);
+                if (node) {
+                    this.focusOnNode(node);
+                    this.showNodeInfo(node);
+                }
+            }
+
+            focusOnNode(node) {
+                const scale = 2;
+                const x = -node.x * scale + this.svg.attr("width") / 2;
+                const y = -node.y * scale + this.svg.attr("height") / 2;
+                
+                this.svg.transition().duration(750).call(
+                    this.zoom.transform,
+                    d3.zoomIdentity.translate(x, y).scale(scale)
+                );
+            }
+
+            updateNodeSizes() {
+                this.nodesGroup.selectAll("circle")
+                    .attr("r", d => this.sizeScale(d.functionSize) * this.config.nodeSize);
+                
+                if (this.simulation) {
+                    this.simulation.force("collision")
+                        .radius(d => this.sizeScale(d.functionSize) * this.config.nodeSize + 2);
+                    this.simulation.alpha(0.1).restart();
+                }
+            }
+
+            searchFunctions(query) {
+                const results = d3.select("#searchResults");
+                results.selectAll("*").remove();
+                
+                if (query.length < 2) return;
+                
+                const matches = this.nodes.filter(node => 
+                    node.name.toLowerCase().includes(query.toLowerCase())
+                ).slice(0, 10);
+                
+                matches.forEach(node => {
+                    results.append("div")
+                        .attr("class", "search-result-item")
+                        .text(node.name)
+                        .on("click", () => this.focusOnNode(node));
+                });
+            }
+
+            updateStats() {
+                d3.select("#nodeCount").text(this.nodes.length);
+                d3.select("#edgeCount").text(this.links.length);
+            }
+
+            createColorLegend() {
+                const legend = d3.select("#colorLegend");
+                legend.selectAll("*").remove();
+                
+                const maxCalls = d3.max(this.nodes, d => d.call_count) || 1;
+                const steps = Math.min(5, maxCalls + 1);
+				
+				//const metric = d3.max(this.nodes, d => d.spaghetti) || 1;
+				//const steps = metric / 50;
+                
+                for (let i = 0; i < steps; i++) {
+                    const value = Math.floor((i / (steps - 1)) * maxCalls);
+					//const value = Math.floor((i / (steps - 1)) * metric);					
+                    const color = this.colorScale(value);
+                    
+                    const item = legend.append("div").attr("class", "legend-item");
+                    item.append("div")
+                        .attr("class", "legend-color")
+                        .style("background", color);
+                    item.append("span").text(`${value} points`);
+                }
+            }
+
+            resizeVisualization() {
+                const container = d3.select("#visualization");
+                const width = container.node().clientWidth;
+                const height = container.node().clientHeight;
+                
+                this.svg.attr("width", width).attr("height", height);
+                
+                if (this.simulation) {
+                    this.simulation.force("center", d3.forceCenter(width / 2, height / 2));
+                    this.simulation.alpha(0.3).restart();
+                }
+            }
+        }
+
+        // Global functions for buttons
+        function centerGraph() {
+            if (window.visualizer && window.visualizer.simulation) {
+                const width = window.visualizer.svg.attr("width");
+                const height = window.visualizer.svg.attr("height");
+                window.visualizer.simulation.force("center", d3.forceCenter(width / 2, height / 2));
+                window.visualizer.simulation.alpha(0.5).restart();
+            }
+        }
+
+        function resetZoom() {
+            if (window.visualizer && window.visualizer.svg) {
+                window.visualizer.svg.transition().duration(750).call(
+                    window.visualizer.zoom.transform,
+                    d3.zoomIdentity
+                );
+            }
+        }
+
+        // Initialize the visualizer when the page loads
+        window.addEventListener('load', () => {
+            window.visualizer = new CallGraphVisualizer();
+        });
+    </script>
+</body>
+</html>
