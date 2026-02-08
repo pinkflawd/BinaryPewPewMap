@@ -11,6 +11,7 @@ Output: JSON file with the call graph structure
 """
 
 import json
+import os
 import binaryninja as bn
 
 def get_string_refs_in_function(func):
@@ -157,7 +158,8 @@ def main(bv):
     print(f"[+] Extracted {len(call_graph['nodes'])} nodes and {len(call_graph['links'])} edges")
     
     # Create output filename based on binary name
-    output_file = bv.file.filename + ".binja.json"
+    filename = os.path.basename(bv.file.filename)
+    output_file = filename + ".binja.json"
     binarypath = os.path.join(r"<GRAPHFOLDER>/graphs", output_file)
     
     # Write to JSON file
