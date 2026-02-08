@@ -18,11 +18,12 @@ For use of ghidraviz.py install Python packages within the PyGhidra pyenv. Launc
 
 Usage
 
-Create folder for output graphs and change folderpath in your extractor script of choice. 
+Create folder for output graphs and change folderpath in your extractor script of choice. That path is hardcoded, I was lazy.
 
 Ghidra: Start pyghidraRun, open binary, load ghidraviz.py in script manager, run
 IDAPro: Open binary in IDAPro, under File -> Script file run idaviz.py 
 Binary Ninja: Run binjaviz.py directly on cmd line, binary file as argument 
 
+Open d3_graphviz_pewpew.html in a browser, load .json graph, click click pew pew. 
 
 ghidraviz and idaviz can also be run via command line with minor changes, for automation purposes. 
