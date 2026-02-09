@@ -661,7 +661,7 @@
                 content += `<div class="node-info-item"><span class="node-info-label">Outgoing Calls:</span>${d.call_count}</div>`;
                 content += `<div class="node-info-item"><span class="node-info-label">References:</span>${d.reference_count}</div>`;
                 content += `<div class="node-info-item"><span class="node-info-label">Strings:</span>${d.string_count}</div>`;
-				content += `<div class="node-info-item"><span class="node-info-label">Spaghetti:</span>${d.spaghetti}</div>`;
+				//content += `<div class="node-info-item"><span class="node-info-label">Spaghetti:</span>${d.spaghetti}</div>`;
                 
                 // Called Functions List
                 if (d.called_functions && d.called_functions.length > 0) {
@@ -772,7 +772,7 @@
                     item.append("div")
                         .attr("class", "legend-color")
                         .style("background", color);
-                    item.append("span").text(`${value} points`);
+                    item.append("span").text(`${value} calls`);
                 }
             }
 
