@@ -519,7 +519,7 @@
                 const maxCalls = d3.max(this.nodes, d => d.call_count) || 1;
 				//const metric = d3.max(this.nodes, d => d.spaghetti) || 1;
                 this.colorScale = d3.scaleSequential(d3.interpolateViridis)
-                    .domain([0, 100])
+                    .domain([0, maxCalls])
 					.clamp(true);
 
                 // Create size scale based on function size
